@@ -11,10 +11,21 @@ MODEL_ID = "distilgpt2"
 MODEL_DIR = "./distilgpt2_local"
 CSV_PATH = "wikitext_small.csv"
 SAVE_DIR = "./distilgpt2_finetuned"
-NUM_SHARDS = 5
-EPOCHS = 10
+
+EPOCHS = 3
 BATCH_SIZE = 4
 MAX_SEQ_LEN = 64
+NUM_SHARDS = 5
+
+# === Shard IPs and Ports ===
+# Change these to match your real device IPs
+SHARD_ADDRS = {
+    0: ("192.168.1.45", 9000),              # Localhost
+    1: ("192.168.1.45", 9001),              # Localhost
+    2: ("192.168.1.47", 9002),           # Raspberry Pi 2: ("192.168.1.47", 9002),           # Raspberry Pi
+    3: ("192.168.1.45", 9003),           # Another Pi
+    4: ("192.168.1.45", 9004),              # Localhost or another device
+}
 
 # === Load tokenizer and model ===
 if os.path.exists(MODEL_DIR):
@@ -30,13 +41,13 @@ else:
 
 tokenizer.pad_token = tokenizer.eos_token
 
-# === Load dataset from CSV ===
+# === Load dataset ===
 if not os.path.exists(CSV_PATH):
     raise FileNotFoundError(f"Dataset CSV not found: {CSV_PATH}")
 df = pd.read_csv(CSV_PATH)
 all_texts = df["text"].tolist()
 
-# === Extract embedding and final layers ===
+# === Extract components ===
 wte = model.transformer.wte
 wpe = model.transformer.wpe
 drop = model.transformer.drop
@@ -48,24 +59,25 @@ trainable_params = list(ln_f.parameters()) + list(lm_head.parameters())
 optimizer = optim.Adam(trainable_params, lr=5e-4)
 loss_fn = nn.CrossEntropyLoss()
 
-# === TCP Shard Communication ===
-def run_shard(port, tensor):
+# === Send to shard and receive output ===
+def run_shard(shard_id, tensor):
+    ip, port = SHARD_ADDRS[shard_id]
     try:
-        print(f"[INFO] Connecting to shard on port {port}...")
-        with socket.create_connection(("localhost", port), timeout=10) as sock:
-            print(f"[INFO] Connected to port {port}. Sending tensor with shape {list(tensor.shape)}")
+        print(f"[INFO] Connecting to shard {shard_id} at {ip}:{port}...")
+        with socket.create_connection((ip, port), timeout=10) as sock:
+            print(f"[INFO] Connected. Sending tensor with shape {list(tensor.shape)}")
             send_tensor(sock, tensor.cpu())
             result = recv_tensor(sock)
-            print(f"[INFO] Received tensor from port {port} with shape {list(result.shape)}")
+            print(f"[INFO] Received tensor from shard {shard_id} with shape {list(result.shape)}")
             return result
     except Exception as e:
-        print(f"[ERROR] Failed to communicate with shard {port}: {e}")
+        print(f"[ERROR] Failed to communicate with shard {shard_id} at {ip}:{port}: {e}")
         exit(1)
 
 # === Training loop ===
 model.train()
 for epoch in range(EPOCHS):
-    print(f"\nEpoch {epoch+1}/{EPOCHS}")
+    print(f"\nEpoch {epoch + 1}/{EPOCHS}")
     total_loss = 0.0
 
     for i in range(0, len(all_texts), BATCH_SIZE):
@@ -79,8 +91,7 @@ for epoch in range(EPOCHS):
         hidden_states = drop(hidden_states)
 
         for shard_id in range(NUM_SHARDS):
-            port = 9000 + shard_id
-            hidden_states = run_shard(port, hidden_states)
+            hidden_states = run_shard(shard_id, hidden_states)
 
         hidden_states = ln_f(hidden_states)
         logits = lm_head(hidden_states[:, :-1, :])
@@ -92,14 +103,12 @@ for epoch in range(EPOCHS):
         optimizer.step()
 
         print(f"\n Batch {i // BATCH_SIZE + 1}: Loss = {loss.item():.4f} {'-' * 20}")
-
-
         total_loss += loss.item()
 
     avg_loss = total_loss / (len(all_texts) // BATCH_SIZE)
-    print(f"\n Epoch {epoch+1} complete. Avg Loss: {avg_loss:.4f} {'='*20}")
+    print(f"Epoch {epoch + 1} complete. Avg Loss: {avg_loss:.4f}")
 
-# === Save fine-tuned model ===
+# === Save model ===
 model.save_pretrained(SAVE_DIR)
 tokenizer.save_pretrained(SAVE_DIR)
-print(f"\n Model saved to {SAVE_DIR}")
+print(f"Model saved to {SAVE_DIR}")
