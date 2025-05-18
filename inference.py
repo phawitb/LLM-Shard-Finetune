@@ -38,17 +38,30 @@ def generate_from_prompts(prompts, max_length=MAX_LENGTH):
 # === Example Prompts ===
 if __name__ == "__main__":
     test_prompts = [
-        "Artificial intelligence is transforming industries",
-        "The future of education will be",
-        "Climate change is",
-        "Self-driving cars rely on",
-        "Space exploration enables",
-        "Healthcare is being revolutionized by",
-        "Social media has",
-        "Blockchain technology is used for",
-        "Quantum computing may solve",
-        "Ethical concerns in AI involve"
+        "Valkyria Chronicles III is a game about",
+        "The Nameless squad in Valkyria Chronicles III was",
+        "Gameplay in Valkyria Chronicles III features",
+        "The plot of Valkyria Chronicles III takes place during",
+        "Imca is a character who seeks revenge against",
+        "The Tower Building in Little Rock is historically known as",
+        "During the American Civil War, the Little Rock Arsenal was",
+        "Lt. Col. Dunnington was in charge of",
+        "The Little Rock Æsthetic Club moved into the Tower Building because",
+        "Douglas MacArthur was born in"
     ]
+    
+    # test_prompts = [
+    #     "Artificial intelligence is transforming industries",
+    #     "The future of education will be",
+    #     "Climate change is",
+    #     "Self-driving cars rely on",
+    #     "Space exploration enables",
+    #     "Healthcare is being revolutionized by",
+    #     "Social media has",
+    #     "Blockchain technology is used for",
+    #     "Quantum computing may solve",
+    #     "Ethical concerns in AI involve"
+    # ]
 
     outputs = generate_from_prompts(test_prompts)
 
