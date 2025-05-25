@@ -21,4 +21,4 @@ python shard_worker.py 4
 ### 4.Run Server (For control Finetune)
 ```
 python server.py 
-``
+```
